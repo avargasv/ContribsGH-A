@@ -37,6 +37,7 @@ object RestServer extends RestHelper {
     val repos = reposByOrganization(organization)
 
     // parallel retrieval of contributors by repo
+    // TODO using akka
     val contributorsDetailed_L_F: List[Future[List[Contributor]]] = repos.map { repo =>
       Future { contributorsByRepo(organization, repo) }
     }
