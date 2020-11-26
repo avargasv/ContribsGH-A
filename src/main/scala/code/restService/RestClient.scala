@@ -16,7 +16,6 @@ object RestClient {
   }
 
   def contributorsByRepo(organization: Organization, repo: Repository): List[Contributor] = {
-
     val resp = processResponseBody(s"https://api.github.com/repos/$organization/${repo.name}/contributors") { responsePage =>
       val login_RE = """"login":"([^"]+)"""".r
       val login_I = for (login_RE(login) <- login_RE.findAllIn(responsePage)) yield login
@@ -40,16 +39,14 @@ object RestClient {
   def processResponseBody[T](url: String) (processPage: String => List[T]): List[T] = {
 
     @tailrec
-    def processResponsePage(processedPages: List[T], page: Int): List[T] = {
-      val eitherPageBody = getRestResponseBody(s"$url?page=$page&per_page=100")
+    def processResponsePage(processedPages: List[T], pageNumber: Int): List[T] = {
+      val eitherPageBody = getResponseBody(s"$url?page=$pageNumber&per_page=100")
       eitherPageBody match {
+        case Right(pageBody) if pageBody.length > 2 =>
+          val processedPage = processPage(pageBody)
+          processResponsePage(processedPages ++ processedPage, pageNumber + 1)
         case Right(pageBody) =>
-          if (pageBody.length > 2) {
-            val processedPage = processPage(pageBody)
-            processResponsePage(processedPages ++ processedPage, page + 1)
-          } else {
-            processedPages
-          }
+          processedPages
         case Left(error) =>
           logger.info(s"processResponseBody error - $error")
           processedPages
@@ -64,7 +61,7 @@ object RestClient {
 
   val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
-  def getRestResponseBody(url: String): Either[String, String] = {
+  def getResponseBody(url: String): Either[String, String] = {
     val request =
       if (gh_token != null) Get(url) ~> addHeader("Authorization", gh_token)
       else Get(url)
