@@ -20,4 +20,8 @@ object AppAux {
       null
     }
 
+  case class Month(year: Int, month: Int) {
+    override def toString: String = s"$year-$month"
+  }
+
 }

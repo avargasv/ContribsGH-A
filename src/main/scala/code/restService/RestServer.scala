@@ -42,8 +42,7 @@ object RestServer extends RestHelper {
       Future { contributorsByRepo(organization, repo) }
     }
     val contributorsDetailed_F_L: Future[List[List[Contributor]]] = Future.sequence(contributorsDetailed_L_F)
-    val contributorsDetailed_L: List[List[Contributor]] = Await.result(contributorsDetailed_F_L, timeout)
-    val contributorsDetailed: List[Contributor] = contributorsDetailed_L.foldLeft(List.empty[Contributor])((acc, elt) => acc ++ elt)
+    val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F_L, timeout).flatten
 
     // grouping
     def contributorByGroupLevel(c: Contributor): Contributor = if (groupLevel == "repo") c else c.copy(repo="ALL")

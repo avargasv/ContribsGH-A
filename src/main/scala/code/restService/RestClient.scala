@@ -2,14 +2,17 @@ package code.restService
 
 import code.lib.AppAux._
 import code.model.Entities._
+import java.time.Instant
 
 object RestClient {
 
   def reposByOrganization(organization: Organization): List[Repository] = {
     val resp = processResponseBody(s"https://api.github.com/orgs/$organization/repos") { responsePage =>
       val full_name_RE = s""","full_name":"$organization/([^"]+)",""".r
-      val full_name_L = (for (full_name_RE(full_name) <- full_name_RE.findAllIn(responsePage)) yield full_name).toList
-      full_name_L.map(Repository(_))
+      val full_name_I = for (full_name_RE(full_name) <- full_name_RE.findAllIn(responsePage)) yield full_name
+      val updated_at_RE = s""","updated_at":"([^"]+)",""".r
+      val updated_at_I = for (updated_at_RE(updated_at) <- updated_at_RE.findAllIn(responsePage)) yield updated_at
+      full_name_I.zip(updated_at_I).map(p => Repository(p._1, Instant.parse(p._2))).toList
     }
     logger.info(s"# of repos=${resp.length}")
     resp
@@ -45,7 +48,7 @@ object RestClient {
         case Right(pageBody) if pageBody.length > 2 =>
           val processedPage = processPage(pageBody)
           processResponsePage(processedPages ++ processedPage, pageNumber + 1)
-        case Right(pageBody) =>
+        case Right(_) =>
           processedPages
         case Left(error) =>
           logger.info(s"processResponseBody error - $error")
@@ -71,6 +74,8 @@ object RestClient {
         Right(response.entity.asString.trim)
       case StatusCodes.Forbidden =>
         Left("API rate limit exceeded")
+      case StatusCodes.NoContent =>
+        Left("Empty repository")
       case StatusCodes.NotFound =>
         Left("Non-existent organization")
       case _ =>
