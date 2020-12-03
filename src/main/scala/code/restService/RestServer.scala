@@ -12,6 +12,9 @@ import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success, Try}
 
+import java.time.{Instant, Duration}
+import java.util.Date
+
 object RestServer extends RestHelper {
 
   serve({
@@ -33,7 +36,8 @@ object RestServer extends RestHelper {
 
   def contributorsByOrganization(organization: String, groupLevel: String, minContribs: Int): List[Contributor] = {
     val sdf = new java.text.SimpleDateFormat("dd-MM-yyyy hh:mm:ss")
-    logger.info(s"Starting ContribsGH-P REST API call at ${sdf.format(new java.util.Date())} - organization='$organization'")
+    val initialInstant = Instant.now
+    logger.info(s"Starting ContribsGH-A REST API call at ${sdf.format(Date.from(initialInstant))} - organization='$organization'")
 
     val repos = reposByOrganization(organization)
 
@@ -45,7 +49,9 @@ object RestServer extends RestHelper {
     val contributorsDetailed_F_L: Future[List[List[Contributor]]] = Future.sequence(contributorsDetailed_L_F)
     val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F_L, timeout).flatten
 
-    logger.info(s"Finished ContribsGH-P REST API call at ${sdf.format(new java.util.Date())} - organization='$organization'")
+    val finalInstant = Instant.now
+    logger.info(s"Finished ContribsGH-A REST API call at ${sdf.format(Date.from(finalInstant))} - organization='$organization'")
+    logger.info(s"Time elapsed: ${Duration.between(initialInstant, finalInstant).getSeconds} seconds")
 
     // grouping, sorting
     val (contributorsGroupedAboveMin, contributorsGroupedBelowMin) = contributorsDetailed.
