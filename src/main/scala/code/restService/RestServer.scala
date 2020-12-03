@@ -34,6 +34,7 @@ object RestServer extends RestHelper {
   def contributorsByOrganization(organization: String, groupLevel: String, minContribs: Int): List[Contributor] = {
     val sdf = new java.text.SimpleDateFormat("dd-MM-yyyy hh:mm:ss")
     logger.info(s"Starting ContribsGH-P REST API call at ${sdf.format(new java.util.Date())} - organization='$organization'")
+
     val repos = reposByOrganization(organization)
 
     // parallel retrieval of contributors by repo
@@ -44,17 +45,29 @@ object RestServer extends RestHelper {
     val contributorsDetailed_F_L: Future[List[List[Contributor]]] = Future.sequence(contributorsDetailed_L_F)
     val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F_L, timeout).flatten
 
-    // grouping
-    def contributorByGroupLevel(c: Contributor): Contributor = if (groupLevel == "repo") c else c.copy(repo="ALL")
-    val contributorsGrouped = contributorsDetailed.
-      map(c => contributorByGroupLevel(c)).
-      groupBy(c => (c.repo, c.name)).
-      mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).toList.
-      map(p => Contributor(p._1._1, p._1._2, p._2)).
-      filter(_.contributions >= minContribs).
-      sortBy(c => (c.repo, - c.contributions, c.name))
     logger.info(s"Finished ContribsGH-P REST API call at ${sdf.format(new java.util.Date())} - organization='$organization'")
-    contributorsGrouped
+
+    // grouping, sorting
+    val (contributorsGroupedAboveMin, contributorsGroupedBelowMin) = contributorsDetailed.
+      map(c => if (groupLevel == "repo") c else c.copy(repo=s"All $organization repos")).
+      groupBy(c => (c.repo, c.name)).
+      mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).
+      map(p => Contributor(p._1._1, p._1._2, p._2)).
+      partition(_.contributions >= minContribs)
+    (
+      contributorsGroupedAboveMin
+      ++
+      contributorsGroupedBelowMin.
+        map(c => c.copy(name = "Other contributors")).
+        groupBy(c => (c.repo, c.name)).
+        mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).
+        map(p => Contributor(p._1._1, p._1._2, p._2))
+    ).toList.sortWith { (c1: Contributor, c2: Contributor) =>
+      if (c1.repo != c2.repo) c1.repo < c2.repo
+      else if (c1.name == "Other contributors") false
+      else if (c1.contributions != c2.contributions) c1.contributions >= c2.contributions
+      else c1.name < c2.name
+    }
   }
 
 }

@@ -18,6 +18,7 @@ scalacOptions ++= Seq("-deprecation", "-unchecked")
 
 libraryDependencies ++= {
   val liftVersion = "3.3.0"
+  val akkaVersion = "2.5.21"
   Seq(
     "net.liftweb"             %% "lift-webkit"            % liftVersion           % "compile",
     "net.liftmodules"         %% "lift-jquery-module_3.3" % "2.10",
@@ -25,11 +26,11 @@ libraryDependencies ++= {
     "org.eclipse.jetty.orbit" %  "javax.servlet"          % "3.0.0.v201112011016" % "container,test" artifacts Artifact("javax.servlet", "jar", "jar"),
     "ch.qos.logback"          %  "logback-classic"        % "1.0.6"               % "compile",
     "org.scala-lang"          %  "scala-library"          % "2.11.1"              % "compile",
-    //"org.scalatest"           %  "scalatest_2.11"         % "2.2.4"               % "test",
-    "com.typesafe.akka"       %  "akka-actor_2.11"        % "2.3.9"               % "compile",
-    "com.typesafe.akka"       %  "akka-remote_2.11"       % "2.3.9"               % "compile",
-    "io.spray"                %  "spray-http_2.11"        % "1.3.3"               % "compile",
-    "io.spray"                %  "spray-httpx_2.11"       % "1.3.3"               % "compile",
-    "io.spray"                %  "spray-client_2.11"      % "1.3.3"               % "compile"
+    "com.typesafe.akka"       %% "akka-actor-typed"       % akkaVersion           % "compile",
+    "com.typesafe.akka"       %%  "akka-actor"            % akkaVersion           % "compile",
+    "com.typesafe.akka"       %%  "akka-remote"           % akkaVersion           % "compile",
+    "io.spray"                %%  "spray-http"            % "1.3.3"               % "compile",
+    "io.spray"                %%  "spray-httpx"           % "1.3.3"               % "compile",
+    "io.spray"                %%  "spray-client"          % "1.3.3"               % "compile"
   )
 }
