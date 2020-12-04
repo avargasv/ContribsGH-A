@@ -5,6 +5,8 @@ import java.time.Instant
 
 object Entities {
 
+  // entities of the REST service
+
   type Organization = String
 
   case class Repository(name: String, updatedAt: Instant)
@@ -16,5 +18,10 @@ object Entities {
       ("contributions" -> contributions)
     }
   }
+
+  // auxiliary types for the REST client
+
+  type Body = String
+  type Error = String
 
 }
