@@ -7,6 +7,7 @@ import net.liftweb.json.JsonDSL._
 import code.lib.AppAux._
 import code.model.Entities._
 import code.restService.RestClient.{contributorsByRepo, reposByOrganization}
+import code.restService.ContribsGHStart._
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -50,22 +51,25 @@ object RestServer extends RestHelper {
     val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F_L, timeout).flatten
 
     // grouping, sorting
-    val (contributorsGroupedAboveMin, contributorsGroupedBelowMin) = contributorsDetailed.
-      map(c => if (groupLevel == "repo") c else c.copy(repo=s"All $organization repos")).
-      groupBy(c => (c.repo, c.name)).
-      mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).
-      map(p => Contributor(p._1._1, p._1._2, p._2)).
+    def groupByRepoAndName(detailed: List[Contributor]): List[Contributor] = {
+      val grouped = detailed.
+        groupBy(c => (c.repo, c.name)).
+        mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).
+        map(p => Contributor(p._1._1, p._1._2, p._2))
+      grouped.toList
+    }
+    def substRepo(c: Contributor) = if (groupLevel == "repo") c else c.copy(repo=s"All $organization repos")
+    def substName(c: Contributor) = c.copy(name = "Other contributors")
+
+    val (contributorsGroupedAboveMin, contributorsGroupedBelowMin) =
+      groupByRepoAndName(contributorsDetailed.map(substRepo(_))).
       partition(_.contributions >= minContribs)
     val contributorsGrouped =
       (
       contributorsGroupedAboveMin
       ++
-      contributorsGroupedBelowMin.
-        map(c => c.copy(name = "Other contributors")).
-        groupBy(c => (c.repo, c.name)).
-        mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).
-        map(p => Contributor(p._1._1, p._1._2, p._2))
-      ).toList.sortWith { (c1: Contributor, c2: Contributor) =>
+      groupByRepoAndName(contributorsGroupedBelowMin.map(substName(_)))
+      ).sortWith { (c1: Contributor, c2: Contributor) =>
         if (c1.repo != c2.repo) c1.repo < c2.repo
         else if (c1.name == "Other contributors") false
         else if (c1.contributions != c2.contributions) c1.contributions >= c2.contributions

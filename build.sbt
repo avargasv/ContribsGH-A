@@ -27,10 +27,8 @@ libraryDependencies ++= {
     "ch.qos.logback"          %  "logback-classic"        % "1.0.6"               % "compile",
     "org.scala-lang"          %  "scala-library"          % "2.11.1"              % "compile",
     "com.typesafe.akka"       %% "akka-actor-typed"       % akkaVersion           % "compile",
-    "com.typesafe.akka"       %% "akka-actor"             % akkaVersion           % "compile",
-    "com.typesafe.akka"       %% "akka-remote"            % akkaVersion           % "compile",
-    "io.spray"                %% "spray-http"             % "1.3.3"               % "compile",
-    "io.spray"                %% "spray-httpx"            % "1.3.3"               % "compile",
-    "io.spray"                %% "spray-client"           % "1.3.3"               % "compile"
+    "io.spray"                %% "spray-http"             % "1.3.4"               % "compile",
+    "io.spray"                %% "spray-httpx"            % "1.3.4"               % "compile",
+    "io.spray"                %% "spray-client"           % "1.3.4"               % "compile"
   )
 }
