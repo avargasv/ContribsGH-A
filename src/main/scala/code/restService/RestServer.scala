@@ -7,7 +7,7 @@ import net.liftweb.json.JsonDSL._
 import code.lib.AppAux._
 import code.model.Entities._
 import code.restService.RestClient.{contributorsByRepo, reposByOrganization}
-import code.restService.ContribsGHStart._
+import code.restService.ContribsGHMain._
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -30,6 +30,8 @@ object RestServer extends RestHelper {
       listContributors(organization, groupLevel, minContribs)
   })
 
+  // TODO start actor system and main actor
+
   def listContributors(organization: String, groupLevel: String, minContribs: Int): LiftResponse = {
     val response: List[Contributor] = contributorsByOrganization(organization, groupLevel, minContribs)
     JsonResponse (response.map(_.asJson))
@@ -40,26 +42,25 @@ object RestServer extends RestHelper {
     val initialInstant = Instant.now
     logger.info(s"Starting ContribsGH-A REST API call at ${sdf.format(Date.from(initialInstant))} - organization='$organization'")
 
+    // parallel retrieval of contributors by repo using akka
     val repos = reposByOrganization(organization)
-
-    // parallel retrieval of contributors by repo
-    // TODO using akka
     val contributorsDetailed_L_F: List[Future[List[Contributor]]] = repos.map { repo =>
       Future { contributorsByRepo(organization, repo) }
     }
     val contributorsDetailed_F_L: Future[List[List[Contributor]]] = Future.sequence(contributorsDetailed_L_F)
+    // TODO ask main actor
     val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F_L, timeout).flatten
 
     // grouping, sorting
     def groupByRepoAndName(detailed: List[Contributor]): List[Contributor] = {
       val grouped = detailed.
-        groupBy(c => (c.repo, c.name)).
+        groupBy(c => (c.repo, c.contributor)).
         mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).
         map(p => Contributor(p._1._1, p._1._2, p._2))
       grouped.toList
     }
     def substRepo(c: Contributor) = if (groupLevel == "repo") c else c.copy(repo=s"All $organization repos")
-    def substName(c: Contributor) = c.copy(name = "Other contributors")
+    def substContributor(c: Contributor) = c.copy(contributor = "Other contributors")
 
     val (contributorsGroupedAboveMin, contributorsGroupedBelowMin) =
       groupByRepoAndName(contributorsDetailed.map(substRepo(_))).
@@ -68,12 +69,12 @@ object RestServer extends RestHelper {
       (
       contributorsGroupedAboveMin
       ++
-      groupByRepoAndName(contributorsGroupedBelowMin.map(substName(_)))
+      groupByRepoAndName(contributorsGroupedBelowMin.map(substContributor(_)))
       ).sortWith { (c1: Contributor, c2: Contributor) =>
         if (c1.repo != c2.repo) c1.repo < c2.repo
-        else if (c1.name == "Other contributors") false
+        else if (c1.contributor == "Other contributors") false
         else if (c1.contributions != c2.contributions) c1.contributions >= c2.contributions
-        else c1.name < c2.name
+        else c1.contributor < c2.contributor
       }
 
     val finalInstant = Instant.now

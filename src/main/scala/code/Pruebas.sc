@@ -1,5 +1,5 @@
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ ActorRef, ActorSystem, Behavior, DispatcherSelector, Terminated }
+import akka.actor.typed.{ ActorRef, ActorSystem, Behavior }
 
 object HelloWorld {
   final case class Greet(whom: String, replyTo: ActorRef[Greeted])

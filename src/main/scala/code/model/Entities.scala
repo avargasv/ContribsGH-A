@@ -11,10 +11,12 @@ object Entities {
 
   case class Repository(name: String, updatedAt: Instant)
 
-  case class Contributor(repo: String, name: String, contributions: Int) {
+  case class Contributions(contributor: String, contributions: Int)
+
+  case class Contributor(repo: String, contributor: String, contributions: Int) {
     def asJson = {
       ("repo" -> repo) ~
-      ("name" -> name) ~
+      ("contributor" -> contributor) ~
       ("contributions" -> contributions)
     }
   }
