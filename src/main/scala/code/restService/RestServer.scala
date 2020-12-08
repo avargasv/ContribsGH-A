@@ -48,7 +48,7 @@ object RestServer extends RestHelper {
       Future { contributorsByRepo(organization, repo) }
     }
     val contributorsDetailed_F_L: Future[List[List[Contributor]]] = Future.sequence(contributorsDetailed_L_F)
-    // TODO ask main actor
+    // TODO ask contributorsDetailed to main actor
     val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F_L, timeout).flatten
 
     // grouping, sorting
