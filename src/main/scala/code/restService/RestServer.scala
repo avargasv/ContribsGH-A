@@ -3,18 +3,20 @@ package code.restService
 import net.liftweb.http.rest.RestHelper
 import net.liftweb.http._
 import net.liftweb.json.JsonDSL._
-
 import code.lib.AppAux._
 import code.model.Entities._
-import code.restService.RestClient.{contributorsByRepo, reposByOrganization}
+
 import code.restService.ContribsGHMain._
+import akka.actor.typed.ActorSystem
+import akka.actor.typed.scaladsl.AskPattern._
+import akka.util.Timeout
+
+import scala.util.{Failure, Success, Try}
+import java.time.{Duration, Instant}
+import java.util.Date
 
 import scala.concurrent.{Await, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success, Try}
-
-import java.time.{Instant, Duration}
-import java.util.Date
+import scala.concurrent.duration.DurationInt
 
 object RestServer extends RestHelper {
 
@@ -30,7 +32,11 @@ object RestServer extends RestHelper {
       listContributors(organization, groupLevel, minContribs)
   })
 
-  // TODO start actor system and main actor
+  // start actor system and main actor
+  val system: ActorSystem[ContributorsByOrg] = ActorSystem(ContribsGHMain(), "AkkaSystem")
+  implicit val ec = system.executionContext
+  implicit val askTimeout: Timeout = 30.seconds
+  implicit val scheduler = system.scheduler
 
   def listContributors(organization: String, groupLevel: String, minContribs: Int): LiftResponse = {
     val response: List[Contributor] = contributorsByOrganization(organization, groupLevel, minContribs)
@@ -43,13 +49,11 @@ object RestServer extends RestHelper {
     logger.info(s"Starting ContribsGH-A REST API call at ${sdf.format(Date.from(initialInstant))} - organization='$organization'")
 
     // parallel retrieval of contributors by repo using akka
-    val repos = reposByOrganization(organization)
-    val contributorsDetailed_L_F: List[Future[List[Contributor]]] = repos.map { repo =>
-      Future { contributorsByRepo(organization, repo) }
+    val contributorsDetailed_F: Future[ContributorsByOrg] = system ? (ref => ReqContributorsByOrg(organization, ref))
+    val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F, futureTimeout) match {
+      case RespContributorsByOrg(resp) => resp
+      case _ => List.empty[Contributor]
     }
-    val contributorsDetailed_F_L: Future[List[List[Contributor]]] = Future.sequence(contributorsDetailed_L_F)
-    // TODO ask contributorsDetailed to main actor
-    val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F_L, timeout).flatten
 
     // grouping, sorting
     def groupByRepoAndName(detailed: List[Contributor]): List[Contributor] = {

@@ -8,7 +8,7 @@ object AppAux {
   val logger = LoggerFactory.getLogger("ContribsGH-P.log")
   logger.info("Logger created")
 
-  val timeout = 15 seconds
+  val futureTimeout = 15 seconds
 
   val gh_token_S = System.getenv("GH_TOKEN")
   val gh_token =

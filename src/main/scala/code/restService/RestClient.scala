@@ -68,7 +68,7 @@ object RestClient {
     val request =
       if (gh_token != null) Get(url) ~> addHeader("Authorization", gh_token)
       else Get(url)
-    val response = Await.result(pipeline(request), timeout)
+    val response = Await.result(pipeline(request), futureTimeout)
     response.status match {
       case StatusCodes.OK =>
         Right(response.entity.asString.trim)
