@@ -51,7 +51,7 @@ object RestServer extends RestHelper {
     // parallel retrieval of contributors by repo using akka
     val contributorsDetailed_F: Future[ContributorsByOrg] = system ? (ref => ReqContributorsByOrg(organization, ref))
     val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F, futureTimeout) match {
-      case RespContributorsByOrg(resp) => resp
+      case RespContributorsByOrg(resp, _) => resp
       case _ => List.empty[Contributor]
     }
 

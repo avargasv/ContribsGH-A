@@ -1,11 +1,13 @@
 package code.restService
 
-import code.lib.AppAux._
 import code.model.Entities._
 import code.restService.RestClient.{contributorsByRepo, reposByOrganization}
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ ActorRef, ActorSystem, Behavior, DispatcherSelector, Terminated }
+import akka.util.Timeout
+import scala.concurrent.duration.DurationInt
+import scala.util.{Failure, Success, Try}
 
 object ContribsGHMain {
   // actor principal
@@ -15,7 +17,7 @@ object ContribsGHMain {
 
   sealed trait ContributorsByOrg
   final case class ReqContributorsByOrg(org: Organization, replyTo: ActorRef[ContributorsByOrg]) extends ContributorsByOrg
-  final case class RespContributorsByOrg(resp: List[Contributor]) extends ContributorsByOrg
+  final case class RespContributorsByOrg(resp: List[Contributor], originalSender: ActorRef[ContributorsByOrg]) extends ContributorsByOrg
 
   def apply(): Behavior[ContributorsByOrg] =
     organizations(Map.empty[Organization, ActorRef[ContributorsByOrg]])
@@ -23,17 +25,24 @@ object ContribsGHMain {
   def organizations(orgs: Map[Organization, ActorRef[ContributorsByOrg]]): Behavior[ContributorsByOrg] =
     Behaviors.receive { (context, message) =>
       message match {
-        case msg @ ReqContributorsByOrg(org, replyTo) =>
-          println(s"mensaje ReqContributorsByOrg recibido para org=$org con orgs.size=${orgs.size}")
+        case ReqContributorsByOrg(org, replyTo) =>
+          println(s"mensaje ReqContributorsByOrg recibido por ContribsGHMain para org=$org con orgs.size=${orgs.size}")
           if (orgs.contains(org)) {
-            // TODO devolver el resultado devuelto por orgs(org)
-            replyTo ! RespContributorsByOrg(List(Contributor("repo1", "abc", 100), Contributor("repo2", "xyz", 200)))
+            implicit val timeout: Timeout = 30.seconds
+            context.ask(orgs(org))((ref: ActorRef[ContributorsByOrg]) => ReqContributorsByOrg(org, ref)) {
+              case Success(resp: RespContributorsByOrg) => resp.copy(originalSender=replyTo)
+              case Failure(_) => RespContributorsByOrg(List.empty[Contributor], replyTo)
+            }
             Behaviors.same
           } else {
             val contribsGHOrg = context.spawn(ContribsGHOrg(org), org)
-            context.self ! msg
+            context.self ! message
             organizations(orgs + (org -> contribsGHOrg))
           }
+        case RespContributorsByOrg(org, originalSender) =>
+          println(s"mensaje RespContributorsByOrg recibido por ContribsGHMain")
+          originalSender ! message
+          Behaviors.same
       }
     }
 
@@ -45,14 +54,24 @@ object ContribsGHOrg {
   // responde a un unico mensaje que devuelve List[Contributor] para org
   // usa el pattern 'per session child actor' para juntar las contribuciones de todos los repos de org
   // que se obtienen de actores ContribsGHRepo
-  import ContribsGHMain._
-  final case class ContributorsByRepo(repo: Repository)
 
-  def apply(org: Organization): Behavior[ContributorsByOrg] =
+  sealed trait ContributorsByRepo
+  final case class ReqContributorsByRepo(repo: Repository, replyTo: ActorRef[ContributorsByRepo]) extends ContributorsByRepo
+  final case class RespContributorsByRepo(resp: List[Contributor], replyTo: ActorRef[ContributorsByRepo]) extends ContributorsByRepo
+
+  def apply(org: Organization): Behavior[ContribsGHMain.ContributorsByOrg] =
+    repositories(org, Map.empty[Repository, ActorRef[ContributorsByRepo]])
+
+  def repositories(org: Organization, repos: Map[Repository, ActorRef[ContributorsByRepo]]): Behavior[ContribsGHMain.ContributorsByOrg] =
     Behaviors.receive { (context, message) =>
-        Behaviors.same
+      message match {
+        case ContribsGHMain.ReqContributorsByOrg(org, replyTo) =>
+          println(s"mensaje ReqContributorsByOrg recibido por ContribsGHOrg para org=$org con repos.size=${repos.size}")
+          // TODO acumular el resultado devuelto por los elementos de repos y devolverlo
+          replyTo ! ContribsGHMain.RespContributorsByOrg(List(Contributor(s"$org-repo1", "abc", 100), Contributor(s"$org-repo2", "xyz", 200)), null)
+          Behaviors.same
+      }
     }
-
 
 }
 
@@ -62,4 +81,5 @@ class ContribsGHRepo(repo: Repository) {
   // crea la lista si el repo es nuevo
   // reemplaza la lista si el repo es obsoleto según updatedAt
   // responde a un unico mensaje que devuelve List[Contributor] para repo
+
 }
