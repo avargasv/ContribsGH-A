@@ -48,7 +48,7 @@ object RestServer extends RestHelper {
     val initialInstant = Instant.now
     logger.info(s"Starting ContribsGH-A REST API call at ${sdf.format(Date.from(initialInstant))} - organization='$organization'")
 
-    // parallel retrieval of contributors by repo using akka
+    // parallel retrieval of contributors by repo using akka actors
     val contributorsDetailed_F: Future[ContributorsByOrg] = system ? (ref => ReqContributorsByOrg(organization, ref))
     val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F, futureTimeout) match {
       case RespContributorsByOrg(resp, _) => resp
