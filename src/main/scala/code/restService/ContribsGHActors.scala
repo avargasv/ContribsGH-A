@@ -39,8 +39,8 @@ object ContribsGHMain {
             }
             Behaviors.same
           } else {
-            val contribsGHOrg = context.spawn(ContribsGHOrg(org), org)
             context.self ! message
+            val contribsGHOrg = context.spawn(ContribsGHOrg(org), org)
             organizations(orgs + (org -> contribsGHOrg))
           }
         case RespContributorsByOrg(org, originalSender) =>
@@ -56,8 +56,7 @@ object ContribsGHOrg {
   // organization actor
   // mantiene mapa de repositorios y referencias a sus actores
   // responde a un único mensaje que devuelve List[Contributor] para org
-  // acumula las contribuciones de todos los repos de org (que se obtienen de actores ContribsGHRepo)
-  // y devuelve lo acumulado
+  // acumula y luego devuelve las contribuciones de todos los repos de org
 
   sealed trait ContributionsByRepo
   final case class ReqContributionsByRepo(repo: Repository, replyTo: ActorRef[ContributorsByOrg]) extends ContributionsByRepo
@@ -82,14 +81,15 @@ object ContribsGHOrg {
             val reposUpdated = repos ++ newRepos.map( repo => repo -> context.spawn(ContribsGHRepo(repo), repo.name) )
             repositories(org, replyTo, reposUpdated, reposUpdated.toList, contributorsSoFar)
           } else {
-            println("envío de mensajes a los elementos de repos")
             for (repo <- repos.keys) repos(repo) ! ReqContributionsByRepo(repo, context.self)
-            repositories(org, replyTo, repos, reposRemaining, contributorsSoFar)
+            repositories(org, replyTo, repos, repos.toList, contributorsSoFar)
           }
         case ContribsGHMain.RespContributionsByRepo(repo, resp) =>
-          // acumula el resultado devuelto por los elementos de repos y si está completo lo devuelve
+          println(s"mensaje RespContributorsByRepo recibido por ContribsGHOrg con reposRemaining.length=${reposRemaining.length}")
+          // acumula el resultado devuelto por los repositorios de la organización y si está completo lo devuelve
           val newContributors = resp.map(c => Contributor(repo.name, c.contributor, c.contributions))
-          if (reposRemaining.length == 1 && reposRemaining.head._1 == repo) {
+          if (reposRemaining.length == 1 && reposRemaining.head._1.name == repo.name) {
+            println(s"mensaje RespContributorsByOrg enviado a ${originalSender.path}")
             originalSender ! RespContributorsByOrg(contributorsSoFar ++ newContributors, originalSender)
             repositories(org, originalSender, repos,
               List.empty[Tuple2[Repository, ActorRef[ContributionsByRepo]]], List.empty[Contributor])
@@ -117,10 +117,18 @@ object ContribsGHRepo {
     Behaviors.receive { (context, message) =>
       message match {
         case ContribsGHOrg.ReqContributionsByRepo(repo, replyTo) =>
-          println(s"mensaje ReqContributorsByRepo recibido por ContribsGHRepo para repo=${repo.name}")
-          println(s"mensaje RespContributorsByRepo enviado a ${replyTo.path}")
-          replyTo ! ContribsGHMain.RespContributionsByRepo(repo, List(Contributions("abc", 100), Contributions("xyz", 200)))
-          Behaviors.same
+          println(s"mensaje ReqContributorsByRepo recibido por ContribsGHRepo para repo=${repo.name} con contribs.size=${contribs.size}")
+          // TODO agregar condorganizacióición de repo recién actualizado
+          if (contribs.size == 0) {
+            context.self ! message
+            // TODO llamar a contributorsByRepo
+            val contribs_L = List(Contributions("abc", 100), Contributions("xyz", 200))
+            contributions(repo, contribs_L)
+          } else {
+            println(s"mensaje RespContributorsByRepo enviado a ${replyTo.path}")
+            replyTo ! ContribsGHMain.RespContributionsByRepo(repo, contribs)
+            Behaviors.same
+          }
       }
     }
   }
