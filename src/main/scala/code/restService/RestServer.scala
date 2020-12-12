@@ -33,7 +33,7 @@ object RestServer extends RestHelper {
   })
 
   // start actor system and main actor
-  val system: ActorSystem[ContributorsByOrg] = ActorSystem(ContribsGHMain(), "AkkaSystem")
+  val system: ActorSystem[ContributorsByOrg] = ActorSystem(ContribsGHMain(), "ContribsGh-AkkaSystem")
   implicit val ec = system.executionContext
   implicit val askTimeout: Timeout = 30.seconds
   implicit val scheduler = system.scheduler
