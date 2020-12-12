@@ -52,7 +52,7 @@ object RestClient {
           processedPages
         case Left(error) =>
           logger.info(s"processResponseBody error - $error")
-          processedPages
+          List.empty[T]
       }
     }
 
