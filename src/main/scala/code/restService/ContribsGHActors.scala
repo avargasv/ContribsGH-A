@@ -40,7 +40,7 @@ object ContribsGHMain {
             val contribsGHOrg = context.spawn(ContribsGHOrg(org), org)
             organizations(orgs_M + (org -> contribsGHOrg))
           }
-        case RespContributorsByOrg(org, originalSender) =>
+        case RespContributorsByOrg(resp, originalSender) =>
           originalSender ! message
           Behaviors.same
       }
@@ -53,8 +53,8 @@ object ContribsGHOrg {
   // mantiene un mapa de los repositorios de una organización y referencias a sus actores
   // responde a un único mensaje que pide List[Contributor] para la organización
   // para responder:
-  // 1. acumula las contribuciones de los repositorios, que pide a un actor ContribsGHRepo por cada repositorio
-  // 2. devuelve las contribuciones acumuladas
+  // - acumula las contribuciones de los repositorios, que pide a un actor ContribsGHRepo por cada repositorio
+  // - devuelve las contribuciones acumuladas
 
   sealed trait ContributionsByRepo
   final case class ReqContributionsByRepo(replyTo: ActorRef[ContributorsByOrg]) extends ContributionsByRepo
@@ -94,11 +94,11 @@ object ContribsGHOrg {
               context.self ! message
               val repos_M_updated = (repos_M -- modifiedRepos) ++
                 (newRepos ++ modifiedRepos).map(repo => repo -> context.spawn(ContribsGHRepo(org, repo), repo.name))
-              repositories(org, replyTo, repos_M_updated, repos_M_updated.toList, contributorsSoFar)
+              repositories(org, replyTo, repos_M_updated, repos_M_updated.toList, List.empty[Contributor])
             } else {
               // usando el mapa de repos existente
               for (repo <- repos_M.keys) repos_M(repo) ! ReqContributionsByRepo(context.self)
-              repositories(org, replyTo, repos_M, repos_M.toList, contributorsSoFar)
+              repositories(org, replyTo, repos_M, repos_M.toList, List.empty[Contributor])
             }
           }
         case ContribsGHMain.RespContributionsByRepo(repo, resp) =>
@@ -124,8 +124,8 @@ object ContribsGHRepo {
   // mantiene una lista de contribuciones de un repositorio
   // responde a un único mensaje que pide List[Contributions] para el repositorio
   // para responder:
-  // la primera vez que recibe el mensaje carga la lista usando el cliente REST
-  // posteriormente responde con la lista cargada, sin volverla a recuperar mediante el cliente REST (cache)
+  // - la primera vez que recibe el mensaje carga la lista usando el cliente REST
+  // - posteriormente responde con la lista cargada, sin volverla a recuperar mediante el cliente REST (cache)
 
   def apply(org: Organization, repo: Repository): Behavior[ContribsGHOrg.ContributionsByRepo] =
     contributions(org, repo, List.empty[Contributions])

@@ -5,7 +5,7 @@ import scala.concurrent.duration._
 
 object AppAux {
 
-  val logger = LoggerFactory.getLogger("ContribsGH-P.log")
+  val logger = LoggerFactory.getLogger("ContribsGH-A.log")
   logger.info("Logger created")
 
   val futureTimeout = 15 seconds
