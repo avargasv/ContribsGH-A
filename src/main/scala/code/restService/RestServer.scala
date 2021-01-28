@@ -38,12 +38,12 @@ object RestServer extends RestHelper {
   implicit val askTimeout: Timeout = 30.seconds
   implicit val scheduler = system.scheduler
 
-  def listContributors(organization: String, groupLevel: String, minContribs: Int): LiftResponse = {
+  private def listContributors(organization: String, groupLevel: String, minContribs: Int): LiftResponse = {
     val response: List[Contributor] = contributorsByOrganization(organization, groupLevel, minContribs)
     JsonResponse (response.map(_.asJson))
   }
 
-  def contributorsByOrganization(organization: Organization, groupLevel: String, minContribs: Int): List[Contributor] = {
+  private def contributorsByOrganization(organization: Organization, groupLevel: String, minContribs: Int): List[Contributor] = {
     val sdf = new java.text.SimpleDateFormat("dd-MM-yyyy hh:mm:ss")
     val initialInstant = Instant.now
     logger.info(s"Starting ContribsGH-A REST API call at ${sdf.format(Date.from(initialInstant))} - organization='$organization'")
@@ -89,5 +89,3 @@ object RestServer extends RestHelper {
   }
 
 }
-
-object
