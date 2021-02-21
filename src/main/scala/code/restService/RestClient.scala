@@ -4,7 +4,12 @@ import code.lib.AppAux._
 import code.model.Entities._
 import java.time.Instant
 
+import net.liftweb.json.DefaultFormats
+import net.liftweb.json._
+
 object RestClient {
+
+  implicit val formats = DefaultFormats
 
   def reposByOrganization(organization: Organization): List[Repository] = {
     val resp = processResponseBody(s"https://api.github.com/orgs/$organization/repos") { responsePage =>
@@ -20,12 +25,10 @@ object RestClient {
 
   def contributorsByRepo(organization: Organization, repo: Repository): List[Contributor] = {
     val resp = processResponseBody(s"https://api.github.com/repos/$organization/${repo.name}/contributors") { responsePage =>
-      val login_RE = """"login":"([^"]+)"""".r
-      val login_I = for (login_RE(login) <- login_RE.findAllIn(responsePage)) yield login
-      val contributions_RE = """"contributions":([0-9]+)""".r
-      val contributions_I = for (contributions_RE(contributions) <- contributions_RE.findAllIn(responsePage)) yield contributions
-      val contributors_L = login_I.zip(contributions_I).map(p => Contributor(repo.name, p._1, p._2.toInt)).toList
-      contributors_L
+      for (contribJSON <- parse(responsePage).children) yield {
+        val contrib = contribJSON.extract[Contribution]
+        Contributor(repo.name, contrib.login, contrib.contributions)
+      }
     }
     logger.info(s"repo='${repo.name}', # of contributors=${resp.length}")
     resp
@@ -64,7 +67,7 @@ object RestClient {
 
   val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
-  private def getResponseBody(url: String): Either[Body, Error] = {
+  private def getResponseBody(url: String): Either[Error, Body] = {
     val request =
       if (gh_token != null) Get(url) ~> addHeader("Authorization", gh_token)
       else Get(url)
