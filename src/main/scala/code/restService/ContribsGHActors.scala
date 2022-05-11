@@ -12,9 +12,9 @@ import scala.util.{Failure, Success}
 
 object ContribsGHMain {
   // main actor
-  // mantiene un mapa de organizaciones y referencias a sus actores
-  // responde a un único mensaje que pide List[Contributor] para una organización
-  // para responder usa el pattern 'ask' que pide List[Contributor] a un actor ContribsGHOrg
+  // holds a map of organizations and references to their corresponding actors
+  // responds to a single message requesting the List[Contributor] for an organization
+  // responds using the 'ask' pattern to request a List[Contributor] to a ContribsGHOrg actor
 
   trait ContributorsByOrg
   final case class ReqContributorsByOrg(org: Organization, replyTo: ActorRef[ContributorsByOrg]) extends ContributorsByOrg
@@ -50,11 +50,11 @@ object ContribsGHMain {
 
 object ContribsGHOrg {
   // organization actor
-  // mantiene un mapa de los repositorios de una organización y referencias a sus actores
-  // responde a un único mensaje que pide List[Contributor] para la organización
-  // para responder:
-  // - acumula las contribuciones de los repositorios, que pide a un actor ContribsGHRepo por cada repositorio
-  // - devuelve las contribuciones acumuladas
+  // holds a map of the repositories of an organizations and references to their corresponding actors
+  // responds to a single message requesting the List[Contributor] for an organization
+  // to respond:
+  // - accumulates the contributions of the repositories, requested to one ContribsGHRepo actor for each repository
+  // - returns the accumulated contributions
 
   sealed trait ContributionsByRepo
   final case class ReqContributionsByRepo(replyTo: ActorRef[ContributorsByOrg]) extends ContributionsByRepo
@@ -72,7 +72,7 @@ object ContribsGHOrg {
         case ContribsGHMain.ReqContributorsByOrg(org, replyTo) =>
           val repos_L = reposByOrganization(org)
           if (repos_L.length == 0) {
-            // recupera del cache, si existe
+            // retrieves from the cache, if it exists
             if (repos_M.size > 0) {
               for (repo <- repos_M.keys) repos_M(repo) ! ReqContributionsByRepo(context.self)
               repositories(org, replyTo, repos_M, repos_M.toList, List.empty[Contributor])
@@ -81,29 +81,29 @@ object ContribsGHOrg {
               Behaviors.same
             }
           } else {
-            // detecta repos nuevos y repos modificados después de su fecha de actualización registrada en repos_M
+            // detects new repos and repos modified after their update date registered in repos_M
             val newRepos = repos_L.filter(r => !repos_M.keys.map(_.name).toSet.contains(r.name))
             val modifiedRepos = repos_L.filter(r =>
               repos_M.keys.map(_.name).toSet.contains(r.name) &&
                 repos_M.keys.find(_.name == r.name).get.updatedAt.compareTo(r.updatedAt) < 0).toSet
-            // detiene los actores de los repos modificados desde la última vez que se actualizó repos_M
+            // stops the actors of the repos modified since the last time repos_M was updated
             repos_M.keys.foreach(k => if (modifiedRepos.contains(k)) context.stop(repos_M(k)))
-            // envía mensajes a los actores del mapa de repos repos_M para acumular sus respuestas
+            // send messages to the actors of the map repos_M to accumulate their responses
             if (newRepos.length > 0 || modifiedRepos.size > 0) {
-              // usando un nuevo mapa de repos que incluye los repos nuevos y modificados
+              // using the new repos map that includes new and modified repos
               context.self ! message
               val repos_M_updated = (repos_M -- modifiedRepos) ++
                 (newRepos ++ modifiedRepos).map(repo => repo -> context.spawn(ContribsGHRepo(org, repo), repo.name))
               repositories(org, replyTo, repos_M_updated, repos_M_updated.toList, List.empty[Contributor])
             } else {
-              // usando el mapa de repos existente
+              // using the old repos map
               for (repo <- repos_M.keys) repos_M(repo) ! ReqContributionsByRepo(context.self)
               repositories(org, replyTo, repos_M, repos_M.toList, List.empty[Contributor])
             }
           }
         case ContribsGHMain.RespContributionsByRepo(repo, resp) =>
-          // acumula las respuestas de los repositorios de la organización
-          // cuando recibe la respuesta del último repositorio responde usando la acumulación efectuada
+          // accumulates the responses of the repositories of the organization
+          // returns the performed accumulation after receiving the response of the last repository
           val newContributors = resp.map(c => Contributor(repo.name, c.contributor, c.contributions))
           if (reposRemaining.length == 1 && reposRemaining.head._1.name == repo.name) {
             originalSender ! RespContributorsByOrg(contributorsSoFar ++ newContributors, originalSender)
@@ -121,11 +121,11 @@ object ContribsGHOrg {
 
 object ContribsGHRepo {
   // repository actor
-  // mantiene una lista de contribuciones de un repositorio
-  // responde a un único mensaje que pide List[Contributions] para el repositorio
-  // para responder:
-  // - la primera vez que recibe el mensaje carga la lista usando el cliente REST
-  // - posteriormente responde con la lista cargada, sin volverla a recuperar mediante el cliente REST (cache)
+  // holds a list of the contributions to a repository
+  // responds to a single message requesting the List[Contributor] for the repository
+  // to respond:
+  // - builds the list using the REST client the first time the message is received
+  // - afterwards, returns the previously built list without using the REST client again (cache)
 
   def apply(org: Organization, repo: Repository): Behavior[ContribsGHOrg.ContributionsByRepo] =
     contributions(org, repo, List.empty[Contributions])
