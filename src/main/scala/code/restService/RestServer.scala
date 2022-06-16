@@ -5,16 +5,15 @@ import net.liftweb.http._
 import net.liftweb.json.JsonDSL._
 import code.lib.AppAux._
 import code.model.Entities._
-
 import code.restService.ContribsGHMain._
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.util.Timeout
+import code.restService.RestClient.reposByOrganization
 
 import scala.util.{Failure, Success, Try}
 import java.time.{Duration, Instant}
 import java.util.Date
-
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.DurationInt
 
@@ -32,12 +31,6 @@ object RestServer extends RestHelper {
       listContributors(organization, groupLevel, minContribs)
   })
 
-  // start actor system and main actor
-  val system: ActorSystem[ContributorsByOrg] = ActorSystem(ContribsGHMain(), "ContribsGh-AkkaSystem")
-  implicit val ec = system.executionContext
-  implicit val askTimeout: Timeout = 30.seconds
-  implicit val scheduler = system.scheduler
-
   private def listContributors(organization: String, groupLevel: String, minContribs: Int): LiftResponse = {
     val response: List[Contributor] = contributorsByOrganization(organization, groupLevel, minContribs)
     JsonResponse (response.map(_.asJson))
@@ -49,32 +42,26 @@ object RestServer extends RestHelper {
     logger.info(s"Starting ContribsGH-A REST API call at ${sdf.format(Date.from(initialInstant))} - organization='$organization'")
 
     // concurrent retrieval of contributors by repo using akka actors
-    val contributorsDetailed_F: Future[ContributorsByOrg] = system ? (ref => ReqContributorsByOrg(organization, ref))
-    val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F, futureTimeout) match {
-      case RespContributorsByOrg(resp, _) => resp
-      case _ => List.empty[Contributor]
-    }
+    val contributorsDetailed: List[Contributor] = RestServerAux.contributorsDetailedAkka(organization)
 
     // grouping, sorting
-    def groupByRepoAndName(detailed: List[Contributor]): List[Contributor] = {
-      val grouped = detailed.
-        groupBy(c => (c.repo, c.contributor)).
-        mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).
-        map(p => Contributor(p._1._1, p._1._2, p._2))
-      grouped.toList
-    }
-    def substRepo(c: Contributor) = if (groupLevel == "repo") c else c.copy(repo=s"All $organization repos")
-    def substContributor(c: Contributor) = c.copy(contributor = "Other contributors")
-
-    val (contributorsGroupedAboveMin, contributorsGroupedBelowMin) =
-      groupByRepoAndName(contributorsDetailed.map(substRepo(_))).
+    val (contributorsGroupedAboveMin, contributorsGroupedBelowMin) = contributorsDetailed.
+      map(c => if (groupLevel == "repo") c else c.copy(repo=s"All $organization repos")).
+      groupBy(c => (c.repo, c.contributor)).
+      mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).
+      map(p => Contributor(p._1._1, p._1._2, p._2)).
       partition(_.contributions >= minContribs)
+
     val contributorsGrouped =
       (
-      contributorsGroupedAboveMin
-      ++
-      groupByRepoAndName(contributorsGroupedBelowMin.map(substContributor(_)))
-      ).sortWith { (c1: Contributor, c2: Contributor) =>
+        contributorsGroupedAboveMin
+          ++
+          contributorsGroupedBelowMin.
+            map(c => c.copy(contributor = "Other contributors")).
+            groupBy(c => (c.repo, c.contributor)).
+            mapValues(_.foldLeft(0)((acc, elt) => acc + elt.contributions)).
+            map(p => Contributor(p._1._1, p._1._2, p._2))
+        ).toList.sortWith { (c1: Contributor, c2: Contributor) =>
         if (c1.repo != c2.repo) c1.repo < c2.repo
         else if (c1.contributor == "Other contributors") false
         else if (c1.contributions != c2.contributions) c1.contributions >= c2.contributions
@@ -86,6 +73,25 @@ object RestServer extends RestHelper {
     logger.info(f"Time elapsed from start to finish: ${Duration.between(initialInstant, finalInstant).toMillis/1000.0}%3.2f seconds")
 
     contributorsGrouped
+  }
+
+}
+
+object RestServerAux {
+
+  // start actor system and main actor (ContribsGHMain)
+  val system: ActorSystem[ContributorsByOrg] = ActorSystem(ContribsGHMain(), "ContribsGh-AkkaSystem")
+  implicit val ec = system.executionContext
+  implicit val askTimeout: Timeout = 30.seconds
+  implicit val scheduler = system.scheduler
+
+  def contributorsDetailedAkka(organization: Organization): List[Contributor] = {
+    val contributorsDetailed_F: Future[ContributorsByOrg] = system ? (ref => ReqContributorsByOrg(organization, ref))
+    val contributorsDetailed: List[Contributor] = Await.result(contributorsDetailed_F, futureTimeout) match {
+      case RespContributorsByOrg(resp, _) => resp
+      case _ => List.empty[Contributor]
+    }
+    contributorsDetailed
   }
 
 }

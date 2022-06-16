@@ -103,9 +103,9 @@ object ContribsGHOrg {
           }
         case ContribsGHMain.RespContributionsByRepo(repo, resp) =>
           // accumulates the responses of the repositories of the organization
-          // returns the performed accumulation after receiving the response of the last repository
           val newContributors = resp.map(c => Contributor(repo.name, c.contributor, c.contributions))
           if (reposRemaining.length == 1 && reposRemaining.head._1.name == repo.name) {
+            // returns the performed accumulation after receiving the response of the last repository
             originalSender ! RespContributorsByOrg(contributorsSoFar ++ newContributors, originalSender)
             repositories(org, originalSender, repos_M,
               List.empty[Tuple2[Repository, ActorRef[ContributionsByRepo]]], List.empty[Contributor])
@@ -113,7 +113,6 @@ object ContribsGHOrg {
             repositories(org, originalSender, repos_M,
               reposRemaining.filter(_._1.name != repo.name), contributorsSoFar ++ newContributors)
           }
-
       }
     }
 
@@ -130,7 +129,7 @@ object ContribsGHRepo {
   def apply(org: Organization, repo: Repository): Behavior[ContribsGHOrg.ContributionsByRepo] =
     contributions(org, repo, List.empty[Contributions])
 
-  def contributions(org: Organization, repo: Repository, contribs: List[Contributions]) : Behavior[ContribsGHOrg.ContributionsByRepo]= {
+  def contributions(org: Organization, repo: Repository, contribs: List[Contributions]) : Behavior[ContribsGHOrg.ContributionsByRepo] =
     Behaviors.receive { (context, message) =>
       message match {
         case ContribsGHOrg.ReqContributionsByRepo(replyTo) =>
@@ -147,6 +146,5 @@ object ContribsGHRepo {
           }
       }
     }
-  }
 
 }
