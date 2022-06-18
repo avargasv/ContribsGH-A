@@ -10,21 +10,21 @@ solution to a software development problem consisting in:
 and endpoint `/org/{org_name}/contributors` with a list of the contributors and the total number of their contributions 
 to all repositories of the GitHub organization given by the `org_name` part of the URL.*
 
-As explained in the initial post, our solutions to the problem share a structure consisting of a A REST client, 
+As explained in the initial post, our solutions to the problem share a structure consisting of a REST client, 
 a REST server, and a processing module. The difference between solutions reside mainly in the processing 
-module, which in the third solution makes use of Akka actors to make asynchronous the calls to the REST 
+module, which in the third solution makes use of Akka actors to perform asynchronously the calls to the REST 
 client, in order to overcome the inefficiency of the first (completely synchronous) solution. 
 The code of this third solution can be downloaded from [ContribsGH-A](https://www.example.com).
 
 This post will explain in detail the processing module of the third solution. To better understand that explanation,
 it may be useful to give a very general explanation of Akka first.
 
-## 2. Introduction. Akka as a platform for developing concurrent and distributed systems.
+## 2. Akka as a platform for developing concurrent and distributed systems.
 
-Basically, Akka actors are distributed objects with (adjustable) behaviour and (protected) state. In Akka, 
-a system is a collection of collaborating actors.
+Basically, Akka actors are distributed objects with (adjustable) behavior and (protected) state. A system is a 
+collection of collaborating actors.
 
-In akka, the processes of a system are implemented using a mechanism of message-passing among its actors
+In Akka, the processes of a system are implemented using a mechanism of message-passing among its actors
 using only actor references (actor instances are never accessed directly), and the messages themselves
 (objects of classes defined specifically for the system's purposes). The messages addressed to a given actor 
 are stored in a mailbox (one for every actor) from where they are extracted for processing by a scheduler. 
@@ -44,7 +44,7 @@ from the actor that originated the message.
 
 Akka actors are distributed by default, they go from remote to local by means of an (automatic) process of optimization.
 In turn, going from parallel to distributed is, in practical terms, "just a matter of configuration", i.e. it doesn't
-imply any changes to the code implementing the actors' behaviour.
+imply any changes to the code implementing the actors' behavior.
 
 Actors are organized in a hierarchy. Each actor has a parent and can create child actors, top-level actors are 
 children of the so-called "guardian" (a predefined root-level actor).
@@ -61,7 +61,7 @@ The ask pattern, instead, implements a "request-response" way of communication, 
 request and gets the `Future` of a response from the receiving actor. There are two variants of these pattern,
 the first when the request message is sent by an actor (i.e. an object internal to the actor system) and the second 
 when the request message is sent by an object external to the actor system. In our processing module we will use
-both variants af the ask pattern.
+both variants of the ask pattern.
 
 Fault tolerance is implemented, as an important part of the tenets of an Akka actor system, by means of a hierarchy of 
 supervisors that decouple communication from failure-handling (supervisors handle failure, actors need not care of it).
@@ -86,8 +86,8 @@ val contributorsDetailed: List[Contributor] = RestServerAux.contributorsDetailed
 used by the (parallel using futures) second solution.
 
 Again, we can see that the difference between versions is confined to an auxiliary function called from
-an, otherwise immutable, processing module. That notwithstanding, the technologies involved  are deeply different,
-all of them, anyway, accessible under the wide-encompassing Scala umbrella. 
+an, otherwise immutable, processing module. However, the technologies involved are deeply different,
+but all of them are still accessible under the wide-encompassing Scala umbrella. 
 
 The auxiliary function using Scala Akka actors takes the following lines:
 ```scala
@@ -107,7 +107,7 @@ to the "main actor" (represented in the message by means of its reference `ref`)
 `Future` (in this case a `Future[ContributorsByOrg]`). Note that the first argument of the ask operator is the actor
 system itself, and the second an anonymous function having as argument an actor reference (a reference to the 
 destination actor) and as body the message to be sent to that actor. The message (`ReqContributorsByOrg`) takes as
-its first parameter the name of the organization at hand of type `Organization` (just a type synonym of `String`).
+its first parameter the name of the organization at hand (of type `Organization`, just a type synonym of `String`).
 
 As we have seen before, to get the result of a `Future` we just need to apply `Await.result` to it. This, in our case,
 will allow us to wait for the `Future` of the response of the main actor of our actor system. This main actor will, 
@@ -115,9 +115,9 @@ in turn, interact with other actors executing in independent threads, making our
 specified by `futureTimeout`. If after that time limit our `Future` is not yet finished, an exception will be raised.
 
 The actor system was created a few lines before the code segment just shown by means of the expression:
-```scala
+`
 val system: ActorSystem[ContributorsByOrg] = ActorSystem(ContribsGHMain(), "ContribsGh-AkkaSystem")
-```
+`
 that calls the factory method `ActorSystem`, taking as arguments the main actor and the name of the 
 actor system (just a `String`). The main actor is created using another factory method, `ContribsGHMain`, 
 a behavior-defining function (a specific kind of functions whose characteristics and benefits are explained 
@@ -127,7 +127,7 @@ Our actors are "typed actors", actors that can only receive messages pertaining 
 The class `T` of the receivable messages defines the class of the actors themselves, by means of a function 
 that returns a `Behavior[T]`, i.e. a function that defines an actor as a factory of its "behavior" 
 (meaning the way an actor reacts to the messages that can handle).
-Some arguments of these behavior factories are tipically used as the state-preserving objects of 
+Some arguments of these behavior factories are typically used as the state-preserving objects of 
 the defined actors. An actor updates its state by returning a new behavior with the values of those arguments 
 updated (the new behavior is returned as the final step of the processing of the message that originates the 
 change of state). This is probably the simplest way of handling state in a purely-functional way, 
@@ -140,17 +140,17 @@ is now something that can be detected statically at compile-time.
 The presence of unhandled messages at run-time was an ugly (and without the help of the compiler, frequent) 
 kind of bug when programming with untyped actors.
 By the way, the signature of a function that receives anything and returns nothing is probably the worst 
-conceivable for a function in a functional programming language (it defines a function that can be used only
+conceivable for a function in a functional programming language (it defines a function that can only be used
 for executing a side-effecting action).
 
 Our main actor (defined in the `ContribsGHMain` object):
 - Holds a map of organizations and references to their corresponding organization actors. 
-- Responds to a ReqContributorsByOrg message for an organization using the "internal" ask pattern to request a
+- Responds to a `ReqContributorsByOrg` message for an organization using the "internal" ask pattern to request a
   `List[Contributor]` to the actor associated with that organization.
 
-The code of the `organizations` function, which defines the behaviour of a `ContribsGHMain` actor, is: 
+The code of the `organizations` function, which defines the behavior of a `ContribsGHMain` actor, is: 
 ```scala
-  def organizations(orgs_M: Map[Organization, ActorRef[ContributorsByOrg]]): Behavior[ContributorsByOrg] =
+def organizations(orgs_M: Map[Organization, ActorRef[ContributorsByOrg]]): Behavior[ContributorsByOrg] =
   Behaviors.receive { (context, message) =>
     message match {
       case ReqContributorsByOrg(org, replyTo) =>
@@ -172,7 +172,7 @@ The code of the `organizations` function, which defines the behaviour of a `Cont
   }
 ```
 Here you can see:
-- The state of a `ContribsGHMain` actor, consisting of the single parameter of the funtion `organizations` 
+- The state of a `ContribsGHMain` actor, consisting of the single parameter of the function `organizations` 
   (a map that associates a reference to a `ContributorsByOrg` actor to an `Organization`).
 - The way in which the two admissible messages for this actor (`ReqContributorsByOrg` and `RespContributorsByOrg`)
   are processed.
@@ -183,12 +183,12 @@ Here you can see:
   just the received response in the first case and a response with an empty `List` of `Contributor`s in the second 
   (in both cases with the original sender in place of the current actor, as needed to implement the ask pattern).
 - How the state is updated when a message arrives asking for the `Contributor`s of an `Organization` that is not
-  contained in the map: a new `ContribsGHOrg` actor is added to the map and a new `Behaviour` (with an upgraded state)
+  contained in the map: a new `ContribsGHOrg` actor is added to the map and a new `Behavior` (with an upgraded state)
   returned.
-- How, in the case the `Organization` is contained in the map, the `Behaviour` returned is the same (the state doesn't
+- How, in the case the `Organization` is contained in the map, the `Behavior` returned is the same (the state doesn't
   change).
 - The use of the tell pattern (applying the tell operator `!`) to redirect the response received from a `ContribsGHOrg` 
-  actor (appropriately pre-processed depending on its Success/Failure type, as explained before) to the original sender.
+  actor (appropriately pre-processed depending on its `Success` / `Failure` type, as explained before) to the original sender.
 
 Each one of our organization actors (defined in the `ContribsGHOrg` object):
 - Holds a map of the repositories of an organizations and references to their corresponding repository actors.
@@ -198,60 +198,60 @@ Each one of our organization actors (defined in the `ContribsGHOrg` object):
     of the organization),
   - returns the accumulated contributions.
     
-This is the code of the `repositories` function, which defines the behaviour of a `ContribsGHOrg` actor:
+This is the code of the `repositories` function, which defines the behavior of a `ContribsGHOrg` actor:
 ```scala
-  def repositories(org: Organization, originalSender: ActorRef[ContributorsByOrg],
-                   repos_M: Map[Repository, ActorRef[ContributionsByRepo]],
-                   reposRemaining: List[Tuple2[Repository, ActorRef[ContributionsByRepo]]],
-                   contributorsSoFar: List[Contributor]): Behavior[ContribsGHMain.ContributorsByOrg] =
-    Behaviors.receive { (context, message) =>
-      message match {
-        case ContribsGHMain.ReqContributorsByOrg(org, replyTo) =>
-          val repos_L = reposByOrganization(org)
-          if (repos_L.length == 0) {
-            // retrieves from the cache, if it exists
-            if (repos_M.size > 0) {
-              for (repo <- repos_M.keys) repos_M(repo) ! ReqContributionsByRepo(context.self)
-              repositories(org, replyTo, repos_M, repos_M.toList, List.empty[Contributor])
-            } else {
-              replyTo ! RespContributorsByOrg(List.empty[Contributor], originalSender)
-              Behaviors.same
-            }
+def repositories(org: Organization, originalSender: ActorRef[ContributorsByOrg],
+                 repos_M: Map[Repository, ActorRef[ContributionsByRepo]],
+                 reposRemaining: List[Tuple2[Repository, ActorRef[ContributionsByRepo]]],
+                 contributorsSoFar: List[Contributor]): Behavior[ContribsGHMain.ContributorsByOrg] =
+  Behaviors.receive { (context, message) =>
+    message match {
+      case ContribsGHMain.ReqContributorsByOrg(org, replyTo) =>
+        val repos_L = reposByOrganization(org)
+        if (repos_L.length == 0) {
+          // retrieves from the cache, if it exists
+          if (repos_M.size > 0) {
+            for (repo <- repos_M.keys) repos_M(repo) ! ReqContributionsByRepo(context.self)
+            repositories(org, replyTo, repos_M, repos_M.toList, List.empty[Contributor])
           } else {
-            // detects new repos and repos modified after their update date registered in repos_M
-            val newRepos = repos_L.filter(r => !repos_M.keys.map(_.name).toSet.contains(r.name))
-            val modifiedRepos = repos_L.filter(r =>
-              repos_M.keys.map(_.name).toSet.contains(r.name) &&
-                repos_M.keys.find(_.name == r.name).get.updatedAt.compareTo(r.updatedAt) < 0).toSet
-            // stops the actors of the repos modified since the last time repos_M was updated
-            repos_M.keys.foreach(k => if (modifiedRepos.contains(k)) context.stop(repos_M(k)))
-            // send messages to the actors of the map repos_M to accumulate their responses
-            if (newRepos.length > 0 || modifiedRepos.size > 0) {
-              // using the new repos map that includes new and modified repos
-              context.self ! message
-              val repos_M_updated = (repos_M -- modifiedRepos) ++
-                (newRepos ++ modifiedRepos).map(repo => repo -> context.spawn(ContribsGHRepo(org, repo), repo.name))
-              repositories(org, replyTo, repos_M_updated, repos_M_updated.toList, List.empty[Contributor])
-            } else {
-              // using the old repos map
-              for (repo <- repos_M.keys) repos_M(repo) ! ReqContributionsByRepo(context.self)
-              repositories(org, replyTo, repos_M, repos_M.toList, List.empty[Contributor])
-            }
+            replyTo ! RespContributorsByOrg(List.empty[Contributor], originalSender)
+            Behaviors.same
           }
-        case ContribsGHMain.RespContributionsByRepo(repo, resp) =>
-          // accumulates the responses of the repositories of the organization
-          // returns the performed accumulation after receiving the response of the last repository
-          originalSender ! RespContributorsByOrg(contributorsSoFar ++ newContributors, originalSender)
+        } else {
+          // detects new repos and repos modified after their update date registered in repos_M
+          val newRepos = repos_L.filter(r => !repos_M.keys.map(_.name).toSet.contains(r.name))
+          val modifiedRepos = repos_L.filter(r =>
+            repos_M.keys.map(_.name).toSet.contains(r.name) &&
+              repos_M.keys.find(_.name == r.name).get.updatedAt.compareTo(r.updatedAt) < 0).toSet
+          // stops the actors of the repos modified since the last time repos_M was updated
+          repos_M.keys.foreach(k => if (modifiedRepos.contains(k)) context.stop(repos_M(k)))
+          // send messages to the actors of the map repos_M to accumulate their responses
+          if (newRepos.length > 0 || modifiedRepos.size > 0) {
+            // using the new repos map that includes new and modified repos
+            context.self ! message
+            val repos_M_updated = (repos_M -- modifiedRepos) ++
+              (newRepos ++ modifiedRepos).map(repo => repo -> context.spawn(ContribsGHRepo(org, repo), repo.name))
+            repositories(org, replyTo, repos_M_updated, repos_M_updated.toList, List.empty[Contributor])
+          } else {
+            // using the old repos map
+            for (repo <- repos_M.keys) repos_M(repo) ! ReqContributionsByRepo(context.self)
+            repositories(org, replyTo, repos_M, repos_M.toList, List.empty[Contributor])
+          }
+        }
+      case ContribsGHMain.RespContributionsByRepo(repo, resp) =>
+        // accumulates the responses of the repositories of the organization
+        // returns the performed accumulation after receiving the response of the last repository
+        originalSender ! RespContributorsByOrg(contributorsSoFar ++ newContributors, originalSender)
+        repositories(org, originalSender, repos_M,
+        val newContributors = resp.map(c => Contributor(repo.name, c.contributor, c.contributions))
+        if (reposRemaining.length == 1 && reposRemaining.head._1.name == repo.name) {
+          List.empty[Tuple2[Repository, ActorRef[ContributionsByRepo]]], List.empty[Contributor])
+        } else {
           repositories(org, originalSender, repos_M,
-          val newContributors = resp.map(c => Contributor(repo.name, c.contributor, c.contributions))
-          if (reposRemaining.length == 1 && reposRemaining.head._1.name == repo.name) {
-            List.empty[Tuple2[Repository, ActorRef[ContributionsByRepo]]], List.empty[Contributor])
-          } else {
-            repositories(org, originalSender, repos_M,
-              reposRemaining.filter(_._1.name != repo.name), contributorsSoFar ++ newContributors)
-          }
-      }
+            reposRemaining.filter(_._1.name != repo.name), contributorsSoFar ++ newContributors)
+        }
     }
+  }
 ```
 Although apparently more complex than the preceding `ContribsGHMain` actors, these `ContribsGHOrg` actors perform
 essentially the same work, with the only obvious difference of having to communicate with more than one child actor
@@ -277,9 +277,9 @@ Finally, each one of our repository actors (defined in the `ContribsGHRepo` obje
   - afterwards, returns the previously built list without using the REST client again
     (the repository actors work in that sense as a cache).
 
-This is the code of the `contributions` function, which defines the behaviour of a `ContribsGHRepo` actor:
+This is the code of the `contributions` function, which defines the behavior of a `ContribsGHRepo` actor:
 ```scala
-  def contributions(org: Organization, repo: Repository, contribs: List[Contributions]) : Behavior[ContribsGHOrg.ContributionsByRepo]= {
+def contributions(org: Organization, repo: Repository, contribs: List[Contributions]) : Behavior[ContribsGHOrg.ContributionsByRepo] =
   Behaviors.receive { (context, message) =>
     message match {
       case ContribsGHOrg.ReqContributionsByRepo(replyTo) =>
@@ -296,10 +296,9 @@ This is the code of the `contributions` function, which defines the behaviour of
         }
     }
   }
-}
 ```
 
-## 3. Comparison of this solution with the first one in terms of efficiency
+## 4. Comparison of this solution with the first one in terms of efficiency
 
 To make a simple comparison of the first and third implementations of our REST service, the synchronous, 
 named CONTRIBSGH-S, and the asynchronous using actors, named CONTRIBSGH-A, we executed both for the organization 
@@ -356,10 +355,10 @@ a laptop with 2 Intel I7 cores. The organization used for the comparison, "revel
 We show here the log messages associated to only 3 of them in each case, in the order in which they were displayed 
 in the log; enough to appreciate another interesting difference between versions: the order of appearance of those 
 messages differ between the synchronous and the asynchronous processing of the GitHub API calls, notwithstanding the 
-fact that the repositories were retrieved in the same order in both cases.
-This is, of course, a consequence of the different order of arrival of the responses to the REST client calls in 
-the Akka asynchronous case, which depends on the processing time of those calls, and on the assignation of processing
-threads to them, that is now in the hands of an execution context implicitly established for running our actors.
+fact that the repositories were retrieved in the same order in both cases. This is, of course, a consequence of the 
+different order of arrival of the responses to the REST client calls in the Akka asynchronous case, which depends 
+on the processing time of those calls, and on the assignation of processing threads to them, that is now in the 
+hands of an execution context implicitly established for running our actors.
 
 The trace of a second call to our service, using the same parameters and organization, shows: 
 
@@ -379,10 +378,10 @@ The trace of a second call to our service, using the same parameters and organiz
 
 ----------------------------------------------------------------------------------------------------------------
 
-Where we can see that the elapsed time now is reduced roughly to the tenth-part of the previous call. 
-This exemplifies the huge gains that can be expected from the use of our repository actors as a cache.
+Here we can see that the elapsed time is reduced to approximately one tenth of that used by the previous call. 
+This exemplifies the huge gains that can be expected from using our repository actors as a cache.
 
-## 4. Further alternative solutions to our problem
+## 5. Further alternative solutions to our problem
 
 The next installment of this series will present a fourth version of our REST service, adding a cache to the 
 second version, implemented by means of a REDIS in-memory key-value database.
