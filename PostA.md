@@ -36,7 +36,7 @@ is by sending it a message and seeing how it responds), and the messages are gua
 to be processed in a one-at-a-time fashion.
 
 During the processing of a message an actor can send messages to other actors and even create new actors,
-besides from changing its internal state and/or its behavior.
+besides changing its internal state and/or its behavior.
 
 Message processing happens in a "single-threaded illusion" with no concerns for the developer regarding locks,
 synchronization or any other low-level concurrency primitives. The actor receiving a message is totally decoupled 
@@ -114,7 +114,7 @@ will allow us to wait for the `Future` of the response of the main actor of our 
 in turn, interact with other actors executing in independent threads, making our main thread wait for at most the time 
 specified by `futureTimeout`. If after that time limit our `Future` is not yet finished, an exception will be raised.
 
-The actor system was created a few lines before the code segment just shown by means of the expression:
+The actor system was created a few lines above the code segment just shown by means of the expression:
 `
 val system: ActorSystem[ContributorsByOrg] = ActorSystem(ContribsGHMain(), "ContribsGh-AkkaSystem")
 `
@@ -126,7 +126,7 @@ in the following paragraphs).
 Our actors are "typed actors", actors that can only receive messages pertaining to a pre-defined class. 
 The class `T` of the receivable messages defines the class of the actors themselves, by means of a function 
 that returns a `Behavior[T]`, i.e. a function that defines an actor as a factory of its "behavior" 
-(meaning the way an actor reacts to the messages that can handle).
+(meaning the way an actor reacts to the messages that it can handle).
 Some arguments of these behavior factories are typically used as the state-preserving objects of 
 the defined actors. An actor updates its state by returning a new behavior with the values of those arguments 
 updated (the new behavior is returned as the final step of the processing of the message that originates the 
@@ -266,7 +266,7 @@ before returning the full response for the organization. That is, they:
   `ContribsGHRepo` actors to the original sender.
 
 Besides, the `ContribsGHOrg` actors administrate the accumulation of the partial responses in a way that we hope 
-is sufficiently made clear by the comments interspersed within the code of the `repositories` function.
+is made sufficiently clear by the comments interspersed within the code of the `repositories` function.
 As said before, this is just "house-keeping" code that does not alter the essential purpose of the function. 
   
 Finally, each one of our repository actors (defined in the `ContribsGHRepo` object):
@@ -360,7 +360,7 @@ different order of arrival of the responses to the REST client calls in the Akka
 on the processing time of those calls, and on the assignation of processing threads to them, that is now in the 
 hands of an execution context implicitly established for running our actors.
 
-The trace of a second call to our service, using the same parameters and organization, shows: 
+The trace of a second call to our service using the same parameters and organization, shows: 
 
 ----------------------------------------------------------------------------------------------------------------
 
@@ -383,5 +383,6 @@ This exemplifies the huge gains that can be expected from using our repository a
 
 ## 5. Further alternative solutions to our problem
 
-The next installment of this series will present a fourth version of our REST service, adding a cache to the 
-second version, implemented by means of a REDIS in-memory key-value database.
+The next installment of this series presents a fourth version of our REST service, adding to the second 
+version (parallel using futures) a cache implemented by means of a REDIS in-memory key-value database.
+You can find it here [link to the fourth post]. 
