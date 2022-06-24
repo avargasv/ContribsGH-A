@@ -131,7 +131,7 @@ Some arguments of these behavior factories are typically used as the state-prese
 the defined actors. An actor updates its state by returning a new behavior with the values of those arguments 
 updated (the new behavior is returned as the final step of the processing of the message that originates the 
 change of state). This is probably the simplest way of handling state in a purely-functional way, 
-as we explained in the third post of this series using as example the factorial function.
+as we explained in the third post of this series.
 
 Previous versions of Akka used "untyped actors", i.e. actors whose behavior was in practical terms defined by a 
 function of type `Any => Unit` instead of `Behavior[T]`, used by the now prevalent typed actors. 
