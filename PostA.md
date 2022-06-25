@@ -134,14 +134,15 @@ change of state). This is probably the simplest way of handling state in a purel
 as we explained in the third post of this series.
 
 Previous versions of Akka used "untyped actors", i.e. actors whose behavior was in practical terms defined by a 
-function of type `Any => Unit` instead of `Behavior[T]`, used by the now prevalent typed actors. 
+function of type `Any => Unit` instead of `Behavior[T]`, used by typed actors. 
 This change of signature is, of course, a great enhancement, because sending an unacceptable message to an actor 
 is now something that can be detected statically at compile-time.
 The presence of unhandled messages at run-time was an ugly (and without the help of the compiler, frequent) 
 kind of bug when programming with untyped actors.
 By the way, the signature of a function that receives anything and returns nothing is probably the worst 
 conceivable for a function in a functional programming language (it defines a function that can only be used
-for executing a side-effecting action).
+for executing a side-effecting action). Even worse, it also leaves aside all the benefits of a statically 
+typed language (nothing useful can result from the compiler checking such an inexpressive signature).
 
 Our main actor (defined in the `ContribsGHMain` object):
 - Holds a map of organizations and references to their corresponding organization actors. 
