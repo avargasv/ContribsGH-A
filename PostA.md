@@ -66,7 +66,7 @@ both variants of the ask pattern.
 Fault tolerance is implemented, as an important part of the tenets of an Akka actor system, by means of a hierarchy of 
 supervisors that decouple communication from failure-handling (supervisors handle failure, actors need not care of it).
 
-Of course, this bird´s eye view of Akka is just an appetizer for a full explanation of Akka that you can find
+Of course, this bird´s eye view of Akka is just an appetizer for a full explanation that you can find
 [here](https://doc.akka.io/docs/akka/current/typed/guide/index.html). 
 
 ## 3. The processing module of our third solution
