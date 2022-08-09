@@ -9,7 +9,6 @@ import code.restService.ContribsGHMain._
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.util.Timeout
-import code.restService.RestClient.reposByOrganization
 
 import scala.util.{Failure, Success, Try}
 import java.time.{Duration, Instant}

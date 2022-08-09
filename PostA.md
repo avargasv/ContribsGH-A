@@ -66,6 +66,27 @@ both variants of the ask pattern.
 Fault tolerance is implemented, as an important part of the tenets of an Akka actor system, by means of a hierarchy of 
 supervisors that decouple communication from failure-handling (supervisors handle failure, actors need not care of it).
 
+Our actors are "typed actors", actors that can only receive messages pertaining to a pre-defined class.
+The class `T` of the receivable messages defines the class of the actors themselves, by means of a function
+that returns a `Behavior[T]`, i.e. a function that defines an actor as a factory of its "behavior"
+(i.e. the way an actor reacts to the messages that it can handle).
+Some arguments of these behavior factories are typically used as the state-preserving objects of
+the defined actors. An actor updates its state by returning a new behavior with the values of those arguments
+updated (the new behavior is returned as the final step of the processing of the message that originates the
+change of state). This is probably the simplest way of handling state in a purely-functional way,
+as we explained in the third post of this series.
+
+Previous versions of Akka used "untyped actors", i.e. actors whose behavior was in practical terms defined by a
+function of type `Any => Unit` instead of `Behavior[T]`, used by typed actors.
+This change of signature is, of course, a great enhancement, because sending an unacceptable message to an actor
+is now something that can be detected statically at compile-time.
+The presence of unhandled messages at run-time was an ugly (and without the help of the compiler, frequent)
+kind of bug when programming with untyped actors.
+By the way, the signature of a function that receives anything and returns nothing is probably the worst
+conceivable for a function in a functional programming language (it defines a function that can only be used
+for executing a side-effecting action). Even worse, it also leaves aside all the benefits of a statically
+typed language (nothing useful can result from the compiler checking such an inexpressive signature).
+
 Of course, this bird´s eye view of Akka is just an appetizer for a full explanation that you can find
 [here](https://doc.akka.io/docs/akka/current/typed/guide/index.html). 
 
@@ -87,7 +108,7 @@ used by the (parallel using futures) second solution.
 
 Again, we can see that the difference between versions is confined to an auxiliary function called from
 an, otherwise immutable, processing module. However, the technologies involved are deeply different,
-but all of them are still accessible under the wide-encompassing Scala umbrella. 
+but all of them are still accessible under the wide-encompassing Scala umbrella.
 
 The auxiliary function using Scala Akka actors takes the following lines:
 ```scala
@@ -101,7 +122,7 @@ def contributorsDetailedAkka(organization: Organization): List[Contributor] = {
 }
 ```
 Here we use the "external" ask pattern to communicate our REST non-actor server with an actor system
-that will soon be explained in detail. We apply the pattern using the ask operator `?` to, 
+that we explain in detail in this section. We apply the pattern using the ask operator `?` to, 
 precisely, ask the actor system to send the message `ReqContributorsByOrg(organization, ref)`
 to the "main actor" (represented in the message by means of its reference `ref`) and to return the response as a
 `Future` (in this case a `Future[ContributorsByOrg]`). Note that the first argument of the ask operator is the actor
@@ -114,39 +135,18 @@ will allow us to wait for the `Future` of the response of the main actor of our 
 in turn, interact with other actors executing in independent threads, making our main thread wait for at most the time 
 specified by `futureTimeout`. If after that time limit our `Future` is not yet finished, an exception will be raised.
 
-The actor system was created a few lines above the code segment just shown by means of the expression:
+The actor system is created a few lines above the code segment just shown, by means of the expression:
 `
 val system: ActorSystem[ContributorsByOrg] = ActorSystem(ContribsGHMain(), "ContribsGh-AkkaSystem")
 `
 that calls the factory method `ActorSystem`, taking as arguments the main actor and the name of the 
 actor system (just a `String`). The main actor is created using another factory method, `ContribsGHMain`, 
-a behavior-defining function (a specific kind of functions whose characteristics and benefits are explained 
-in the following paragraphs).
-
-Our actors are "typed actors", actors that can only receive messages pertaining to a pre-defined class. 
-The class `T` of the receivable messages defines the class of the actors themselves, by means of a function 
-that returns a `Behavior[T]`, i.e. a function that defines an actor as a factory of its "behavior" 
-(meaning the way an actor reacts to the messages that it can handle).
-Some arguments of these behavior factories are typically used as the state-preserving objects of 
-the defined actors. An actor updates its state by returning a new behavior with the values of those arguments 
-updated (the new behavior is returned as the final step of the processing of the message that originates the 
-change of state). This is probably the simplest way of handling state in a purely-functional way, 
-as we explained in the third post of this series.
-
-Previous versions of Akka used "untyped actors", i.e. actors whose behavior was in practical terms defined by a 
-function of type `Any => Unit` instead of `Behavior[T]`, used by typed actors. 
-This change of signature is, of course, a great enhancement, because sending an unacceptable message to an actor 
-is now something that can be detected statically at compile-time.
-The presence of unhandled messages at run-time was an ugly (and without the help of the compiler, frequent) 
-kind of bug when programming with untyped actors.
-By the way, the signature of a function that receives anything and returns nothing is probably the worst 
-conceivable for a function in a functional programming language (it defines a function that can only be used
-for executing a side-effecting action). Even worse, it also leaves aside all the benefits of a statically 
-typed language (nothing useful can result from the compiler checking such an inexpressive signature).
+a behavior-defining function (a specific kind of function whose characteristics and benefits were explained 
+in the previous section).
 
 Our main actor (defined in the `ContribsGHMain` object):
 - Holds a map of organizations and references to their corresponding organization actors. 
-- Responds to a `ReqContributorsByOrg` message for an organization using the "internal" ask pattern to request a
+- Responds to a `ReqContributorsByOrg` message for an organization using the ask pattern to request a
   `List[Contributor]` to the actor associated with that organization.
 
 The code of the `organizations` function, which defines the behavior of a `ContribsGHMain` actor, is: 
@@ -185,19 +185,19 @@ Here you can see:
   (in both cases with the original sender in place of the current actor, as needed to implement the ask pattern).
 - How the state is updated when a message arrives asking for the `Contributor`s of an `Organization` that is not
   contained in the map: a new `ContribsGHOrg` actor is added to the map and a new `Behavior` (with an upgraded state)
-  returned.
+  returned. Besides, of course, the message is re-sent, in order to be processed this time with the updated state.
 - How, in the case the `Organization` is contained in the map, the `Behavior` returned is the same (the state doesn't
   change).
 - The use of the tell pattern (applying the tell operator `!`) to redirect the response received from a `ContribsGHOrg` 
-  actor (appropriately pre-processed depending on its `Success` / `Failure` type, as explained before) to the original sender.
+  actor (appropriately pre-processed depending on its `Success` / `Failure` type, as explained before) to the original 
+  sender.
 
-Each one of our organization actors (defined in the `ContribsGHOrg` object):
+For their part, each one of our organization actors (defined in the `ContribsGHOrg` object):
 - Holds a map of the repositories of an organizations and references to their corresponding repository actors.
-- Responds to a `ReqContributorsByOrg` message requesting the `List[Contributor]` for an organization.
-- To respond:
-  - accumulates the contributions of the repositories (requested to the actors associated with the repositories
+- Responds to a `ReqContributorsByOrg` message requesting the `List[Contributor]` for an organization, by
+  - accumulating the contributions of the repositories (requested to the actors associated with the repositories
     of the organization),
-  - returns the accumulated contributions.
+  - "returning" (applying the tell pattern) the accumulated contributions.
     
 This is the code of the `repositories` function, which defines the behavior of a `ContribsGHOrg` actor:
 ```scala
@@ -241,12 +241,12 @@ def repositories(org: Organization, originalSender: ActorRef[ContributorsByOrg],
         }
       case ContribsGHMain.RespContributionsByRepo(repo, resp) =>
         // accumulates the responses of the repositories of the organization
-        // returns the performed accumulation after receiving the response of the last repository
-        originalSender ! RespContributorsByOrg(contributorsSoFar ++ newContributors, originalSender)
-        repositories(org, originalSender, repos_M,
         val newContributors = resp.map(c => Contributor(repo.name, c.contributor, c.contributions))
         if (reposRemaining.length == 1 && reposRemaining.head._1.name == repo.name) {
-          List.empty[Tuple2[Repository, ActorRef[ContributionsByRepo]]], List.empty[Contributor])
+          // returns the performed accumulation after receiving the response of the last repository
+          originalSender ! RespContributorsByOrg(contributorsSoFar ++ newContributors, originalSender)
+          repositories(org, originalSender, repos_M,
+            List.empty[Tuple2[Repository, ActorRef[ContributionsByRepo]]], List.empty[Contributor])
         } else {
           repositories(org, originalSender, repos_M,
             reposRemaining.filter(_._1.name != repo.name), contributorsSoFar ++ newContributors)
@@ -254,28 +254,31 @@ def repositories(org: Organization, originalSender: ActorRef[ContributorsByOrg],
     }
   }
 ```
-Although apparently more complex than the preceding `ContribsGHMain` actors, these `ContribsGHOrg` actors perform
+Although more complex than the preceding `ContribsGHMain` actors, these `ContribsGHOrg` actors perform
 essentially the same work, with the only obvious difference of having to communicate with more than one child actor
 to get the necessary information and, consequently, having to accumulate the partial responses for the repositories
 before returning the full response for the organization. That is, they:
-- Also hold their state as the parameter(s) of their behavior-defining function `repositories`.
-- Also make use of the "internal" ask pattern to ask the appropriate `ContributorsByRepo` repository actors
-  a `List` of the `Contributor`s for the repositories of the current `Organization`.
-- Pre-process the response of the `ContributorsByRepo` actors (a `Future[RespContributorsByRepo]`) depending
-  on whether it was a `Success` or a `Failure` in the same way as before.
-- Make use of the tell pattern to return the (accumulated) response received from a group of
-  `ContribsGHRepo` actors to the original sender.
+- Hold their state as the parameter(s) of their behavior-defining function `repositories`.
+- Make use of the tell pattern to "return" the (accumulated) response, received from a group of
+  `ContribsGHRepo` actors, to the original sender.
+- Hold a state that is composed of the following (besides the organization and original sender):
+  - `repos_M`, a map of repositories and references to their corresponding `ContribsGHRepo` actors, 
+    which "return" (in this case applying the tell pattern instead of the ask pattern) 
+    a `List` of the `Contributor`s for each repository of the current `Organization`,
+  - `reposRemaining`, a list of the repositories of the current `Organization` not yet accumulated 
+    in `contributorsSoFar`,
+  - `contributorsSoFar`, the accumulation of the `Contributor`s of the repositories of the current `Organization`
+    (except those still contained in `reposRemaining`)
 
-Besides, the `ContribsGHOrg` actors administrate the accumulation of the partial responses in a way that we hope 
+The `ContribsGHOrg` actors administrate the accumulation of the partial responses in a way that we hope 
 is made sufficiently clear by the comments interspersed within the code of the `repositories` function.
 As said before, this is just "house-keeping" code that does not alter the essential purpose of the function. 
-  
+
 Finally, each one of our repository actors (defined in the `ContribsGHRepo` object):
 - Holds a list of the contributions to a repository.
-- Responds to a `ReqContributionsByRepo` message requesting the `List[Contributor]` for a repository.
-- To respond:
-  - builds the list using the REST client the first time the message is received,
-  - afterwards, returns the previously built list without using the REST client again
+- Responds to a `ReqContributionsByRepo` message requesting the `List[Contributor]` for a repository, by:
+  - building the list using the REST client the first time the message is received,
+  - afterwards, returning the previously built list without using the REST client again
     (the repository actors work in that sense as a cache).
 
 This is the code of the `contributions` function, which defines the behavior of a `ContribsGHRepo` actor:
